@@ -66,7 +66,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3;
+        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3, FOLDER = 4;
 
         final int kind;
         final String label;
@@ -218,6 +218,15 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final Map<String, String> appLabels, appBanners;
     /** Every app tile is its icon on a card tinted from that icon, never its banner (config.xml, uniform_tiles). */
     private final boolean uniformTiles;
+    /** Uniform tiles on a dark card instead of each icon's own colour (DarkMode). */
+    private boolean dark;
+    private static final int[] DARK_TILE = {0xFF3C3C42, 0xFF1B1B1F};
+
+    void setDark(boolean value) {
+        if (dark == value) return;
+        dark = value;
+        notifyDataSetChanged();
+    }
     /** Packages drawn from their icon and name even when they have a banner (config.xml icon_tiles). */
     private final Set<String> iconTiles;
     private final List<Entry> items = new ArrayList<>();
@@ -297,11 +306,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     appLabels.containsKey(pkg) ? appLabels.get(pkg) : String.valueOf(ri.loadLabel(pm)), pkg);
             if (!seen.add(pkg + '\n' + label)) continue;
             Drawable banner = null;
-            // uniform_tiles draws the icon, so an app's banner is never loaded. A module card keeps its banner.
-            if (!(uniformTiles && card == null)) {
-                banner = bundledBanner(appBanners.get(pkg));
-                if (banner == null) banner = iconTiles.contains(pkg) ? iconBanner(ri.loadIcon(pm)) : loadBanner(pm, ri);
-            }
+            // An app's own TV banner fills the tile and reads from across the room; only apps without one get
+            // uniform_tiles' icon on a card.
+            banner = bundledBanner(appBanners.get(pkg));
+            if (banner == null) banner = iconTiles.contains(pkg) ? iconBanner(ri.loadIcon(pm)) : loadBanner(pm, ri);
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
@@ -311,6 +319,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 fresh.add(new Entry(label, component, banner, icon));
             }
         }
+        insertFolders(fresh);
         Collections.sort(fresh, (a, b) -> {
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
             int saved = Order.compare(savedRanks, a.component.flattenToShortString(), b.component.flattenToShortString());
@@ -322,7 +331,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 return Integer.compare(fa, fb);
             }
             // Cards come right after the configured dock apps, before the alphabetical grid.
-            boolean ca = a.kind == Entry.CARD, cb = b.kind == Entry.CARD;
+            boolean ca = a.kind == Entry.CARD || a.kind == Entry.FOLDER, cb = b.kind == Entry.CARD || b.kind == Entry.FOLDER;
             if (ca != cb) return ca ? -1 : 1;
             return a.label.compareToIgnoreCase(b.label);
         });
@@ -343,6 +352,49 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         items.clear();
         items.addAll(fresh);
         notifyDataSetChanged();
+    }
+
+    boolean isFolderAt(int position) {
+        return position >= 0 && position < items.size() && items.get(position).kind == Entry.FOLDER;
+    }
+
+    /** Folders replace their apps' tiles and sort like any tile. Apps pinned in the dock stay in the dock. */
+    private void insertFolders(List<Entry> fresh) {
+        for (Map.Entry<String, List<String>> folder : Folders.load(ctx).entrySet()) {
+            List<Entry> members = new ArrayList<>();
+            for (Entry e : new ArrayList<>(fresh)) {
+                if (e.kind == Entry.APP && folder.getValue().contains(e.pkg) && !isDocked(e)) {
+                    members.add(e);
+                    fresh.remove(e);
+                }
+            }
+            if (members.isEmpty()) continue;
+            fresh.add(new Entry(Entry.FOLDER, folder.getKey(), new ComponentName(ctx, "folder-" + folder.getKey()),
+                    null, folderIcon(members), null, 0));
+        }
+    }
+
+    /** The first four apps' icons in a two by two square. */
+    private Drawable folderIcon(List<Entry> members) {
+        int side = 192, cell = 92, gap = 8;
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(side, side, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+        for (int i = 0; i < Math.min(4, members.size()); i++) {
+            Drawable icon = members.get(i).icon;
+            if (icon == null) {
+                try {
+                    icon = ctx.getPackageManager().getApplicationIcon(members.get(i).pkg);   // tiles with a banner load no icon
+                } catch (PackageManager.NameNotFoundException e) {
+                    continue;
+                }
+            }
+            if (icon.getConstantState() == null) continue;
+            Drawable copy = icon.getConstantState().newDrawable().mutate();
+            int x = (i % 2) * (cell + gap), y = (i / 2) * (cell + gap);
+            copy.setBounds(x, y, x + cell, y + cell);
+            copy.draw(canvas);
+        }
+        return new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
     }
 
     /** icon_tiles: the app's icon centred on a dark banner-shaped tile, for apps whose own banner crops badly. */
@@ -493,7 +545,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.card.setBackground(e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
         if (uniformTiles && e.banner == null) {
             if (e.backdrop == null) e.backdrop = backdrop(e.icon, ambientColorAt(position));
-            h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, e.backdrop));
+            h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, dark ? DARK_TILE : e.backdrop));
         }
         if (e.banner != null) {
             h.banner.setImageDrawable(e.banner);
@@ -528,6 +580,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     @SuppressWarnings("deprecation")
     private void launch(Entry e) {
+        if (e.kind == Entry.FOLDER) {
+            ctx.startActivity(new Intent(ctx, FolderActivity.class).putExtra("name", e.label)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        }
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -690,7 +747,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     /** Share of the tile height the icon takes in uniform_tiles mode (onCreateViewHolder). */
-    private static final float ICON_SHARE = 0.62f;
+    private static final float ICON_SHARE = 0.9f;
 
     /**
      * The colour covering most of an icon, for a card that should read as that app: a small saturated badge

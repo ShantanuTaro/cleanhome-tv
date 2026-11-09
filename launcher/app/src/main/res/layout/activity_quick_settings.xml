@@ -1,28 +1,126 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Quick settings opened by the remote's Settings button: the Inputs dropdown's glass panel, placed
-     under the Settings pill so it lines up on Home and sits top right over any app. -->
+<!-- Control Center: opened by Home's Settings button. Drawn only while open, over a plain dim layer. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/scrim"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#B3000000">
 
     <LinearLayout
         android:id="@+id/panel"
         android:layout_width="wrap_content"
-        android:minWidth="220dp"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_marginTop="105dp"
+        android:layout_marginTop="26dp"
         android:layout_marginEnd="56dp"
         android:orientation="vertical"
         android:background="@drawable/glass_panel"
-        android:padding="6dp"
-        android:elevation="12dp">
+        android:padding="14dp">
 
         <LinearLayout
-            android:id="@+id/rows"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/ccSleep"
+                style="@style/CcTile"
+                android:layout_width="134dp"
+                android:layout_height="134dp"
+                android:drawableTop="@drawable/ic_cc_power"
+                android:gravity="center"
+                android:paddingTop="26dp"
+                android:text="@string/cc_sleep" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/ccWifi"
+                    style="@style/CcTile"
+                    android:layout_width="170dp"
+                    android:layout_height="62dp"
+                    android:drawableStart="@drawable/ic_wifi"
+                    android:text="@string/wifi" />
+
+                <TextView
+                    android:id="@+id/ccBluetooth"
+                    style="@style/CcTile"
+                    android:layout_width="170dp"
+                    android:layout_height="62dp"
+                    android:layout_marginTop="10dp"
+                    android:drawableStart="@drawable/ic_cc_bluetooth"
+                    android:text="@string/cc_bluetooth" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/ccInputs"
+                style="@style/CcTile"
+                android:layout_width="152dp"
+                android:layout_height="58dp"
+                android:drawableStart="@drawable/ic_input"
+                android:text="@string/inputs" />
+
+            <TextView
+                android:id="@+id/ccSettings"
+                style="@style/CcTile"
+                android:layout_width="152dp"
+                android:layout_height="58dp"
+                android:layout_marginStart="10dp"
+                android:drawableStart="@drawable/ic_settings"
+                android:text="@string/settings" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/ccRecents"
+                style="@style/CcIcon"
+                android:contentDescription="@string/cc_recents"
+                android:src="@drawable/ic_cc_recents" />
+
+            <ImageView
+                android:id="@+id/ccWallpapers"
+                style="@style/CcIcon"
+                android:layout_marginStart="10dp"
+                android:contentDescription="@string/cc_wallpapers"
+                android:src="@drawable/ic_picture" />
+
+            <ImageView
+                android:id="@+id/ccRearrange"
+                style="@style/CcIcon"
+                android:layout_marginStart="10dp"
+                android:contentDescription="@string/cc_rearrange"
+                android:src="@drawable/ic_swap_vert" />
+
+            <ImageView
+                android:id="@+id/ccDark"
+                style="@style/CcIcon"
+                android:layout_marginStart="10dp"
+                android:contentDescription="@string/cc_dark"
+                android:src="@drawable/ic_cc_moon" />
+
+            <ImageView
+                android:id="@+id/ccLauncher"
+                style="@style/CcIcon"
+                android:layout_marginStart="10dp"
+                android:contentDescription="@string/launcher_settings"
+                android:src="@drawable/ic_home_settings" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

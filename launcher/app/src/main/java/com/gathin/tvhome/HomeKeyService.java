@@ -94,6 +94,12 @@ public class HomeKeyService extends AccessibilityService {
     /** The bound helper, so the opt-in broadcast can arm it without waiting for a new connection. */
     private static HomeKeyService running;
 
+    /** Control Center's Sleep: the same standby as the remote's power button; false when this service is not bound. */
+    static boolean sleep() {
+        HomeKeyService service = running;
+        return service != null && service.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();

@@ -38,6 +38,23 @@
     <string name="shamsi_month_dey">Dey</string>
     <string name="shamsi_month_bahman">Bahman</string>
     <string name="shamsi_month_esfand">Esfand</string>
+    <string name="folder_move" translatable="false">Move to folder</string>
+    <string name="folder_tcl" translatable="false">TCL</string>
+    <string name="folder_utilities" translatable="false">Utilities</string>
+    <string name="folder_media" translatable="false">Media</string>
+    <string name="folder_kids" translatable="false">Kids</string>
+    <string name="cc_no_recents" translatable="false">No recent apps yet</string>
+    <string name="cc_close_all" translatable="false">Close All</string>
+    <string name="cc_closing" translatable="false">Closing…</string>
+    <string name="cc_close_failed" translatable="false">Could not close the apps. Press Close All and choose Allow on the TV.</string>
+    <string name="cc_wallpapers" translatable="false">Wallpapers</string>
+    <string name="cc_wallpapers_hint" translatable="false">OK turns a photo on or off. Photos that are on take turns each time the TV comes on.</string>
+    <string name="cc_wallpapers_last" translatable="false">Keep at least one wallpaper on</string>
+    <string name="cc_rearrange" translatable="false">Rearrange apps</string>
+    <string name="cc_sleep" translatable="false">Sleep</string>
+    <string name="cc_bluetooth" translatable="false">Bluetooth</string>
+    <string name="cc_recents" translatable="false">Recent Apps</string>
+    <string name="cc_dark" translatable="false">Dark Mode</string>
     <string name="stats_cpu">CPU %1$d%%</string>
     <string name="stats_memory">Memory %1$d / %2$d MB</string>
     <string name="stats_storage">Storage %1$s free</string>

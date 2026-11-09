@@ -1,0 +1,11 @@
+{
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 0,
+  "wallpaper_order": "sequential",
+  "wallpaper_dim": 0,
+  "wallpaper_true_color": true,
+  "dock_glass": true,
+  "show_stats": true,
+  "sky_intensity": 0,
+  "ambient_glow": false
+}

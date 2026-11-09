@@ -1,14 +1,23 @@
 package com.gathin.tvhome;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.hardware.display.DisplayManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -61,9 +70,51 @@ final class WallpaperPlayer {
     private final String latitude, longitude;
     private LocalDate sunDay;
     private int[] sun;
+    private final Context app;
+    /** The TV came on: the next update moves to the next picture. */
+    private final BroadcastReceiver screenOn = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            powerOn("broadcast");
+        }
+    };
+    /** Some TCL firmware leaves the app on screen out of the broadcast (see ClockRefresh): the display state as well. */
+    private final DisplayManager.DisplayListener displayWatch = new DisplayManager.DisplayListener() {
+        private int last = Display.STATE_ON;
+
+        @Override
+        public void onDisplayChanged(int id) {
+            if (id != Display.DEFAULT_DISPLAY) return;
+            int state = displays.getDisplay(id).getState();
+            if (state == Display.STATE_ON && last != Display.STATE_ON) powerOn("display");
+            last = state;
+        }
+
+        @Override
+        public void onDisplayAdded(int id) {
+        }
+
+        @Override
+        public void onDisplayRemoved(int id) {
+        }
+    };
+    private DisplayManager displays;
+    private long lastPowerOn = -POWER_ON_GAP_MS;
+    private static final long POWER_ON_GAP_MS = 30_000L;
+
+    /** One power-on can be reported by both watchers: only the first within the gap counts. */
+    private void powerOn(String why) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastPowerOn < POWER_ON_GAP_MS) return;
+        lastPowerOn = now;
+        Log.w("TvHome.Wallpaper", "power on: " + why);
+        preferences.edit().putBoolean("power_on", true).apply();
+        update();
+    }
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
         this.root = root;
+        app = context.getApplicationContext();
         backgroundColor = config.backgroundColor;
         files = new ArrayList<>(config.wallpapers);
         interval = config.wallpaperRotationMinutes * 60_000L;
@@ -82,6 +133,14 @@ final class WallpaperPlayer {
             preferences.edit().putString("collection", collection)
                     .remove("image").remove("changed").apply();
         }
+        // A new boot counts as the TV coming on; standby is caught by screenOn while this process lives.
+        int boot = Settings.Global.getInt(app.getContentResolver(), Settings.Global.BOOT_COUNT, 0);
+        if (boot != preferences.getInt("boot", -1)) {
+            preferences.edit().putInt("boot", boot).putBoolean("power_on", true).apply();
+        }
+        app.registerReceiver(screenOn, new IntentFilter(Intent.ACTION_SCREEN_ON));
+        displays = app.getSystemService(DisplayManager.class);
+        displays.registerDisplayListener(displayWatch, new Handler(Looper.getMainLooper()));
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         width = metrics.widthPixels;
         height = metrics.heightPixels;
@@ -106,7 +165,7 @@ final class WallpaperPlayer {
     private void showFirst() {
         String previous = preferences.getString("image", "");
         List<File> playable = playable();
-        File first = WallpaperRotation.find(playable, previous);
+        File first = preferences.getBoolean("power_on", false) ? null : WallpaperRotation.find(playable, previous);
         if (first == null) first = WallpaperRotation.pick(playable, previous, order, random);
         while (first != null) {
             Bitmap bitmap = decode(first);
@@ -115,9 +174,10 @@ final class WallpaperPlayer {
                 // The picture covers the whole screen: the root's plain colour under it is overdraw.
                 root.setBackground(null);
                 displayed = first.getName();
+                Log.w("TvHome.Wallpaper", "opening on " + displayed + " after " + previous);
                 showCaption(false);
                 if (!displayed.equals(previous)) {
-                    preferences.edit().putString("image", displayed)
+                    preferences.edit().putString("image", displayed).putBoolean("power_on", false)
                             .putLong("changed", System.currentTimeMillis()).apply();
                 }
                 return;
@@ -148,20 +208,32 @@ final class WallpaperPlayer {
         root.setBackgroundColor(backgroundColor);
     }
 
+    /** The collection without the photos turned off in WallpapersActivity. */
+    private List<File> enabled() {
+        Set<String> off = preferences.getStringSet("off", Collections.emptySet());
+        if (off.isEmpty()) return files;
+        List<File> on = new ArrayList<>();
+        for (File file : files) if (!off.contains(file.getName())) on.add(file);
+        return on.isEmpty() ? files : on;
+    }
+
     /** The pictures the rotation picks from now: wallpaper_moods' group for the time of day, or the whole collection. */
     private List<File> playable() {
-        if (moods.isEmpty()) return files;
+        List<File> enabled = enabled();
+        if (moods.isEmpty()) return enabled;
         LocalDateTime now = LocalDateTime.now();
         if (!now.toLocalDate().equals(sunDay)) {
             sunDay = now.toLocalDate();
             sun = WallpaperMood.sun(sunDay, latitude, longitude, ZoneId.systemDefault());
         }
-        return WallpaperMood.select(files, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
+        return WallpaperMood.select(enabled, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
     }
 
     void close() {
         active = false;
         closed = true;
+        app.unregisterReceiver(screenOn);
+        displays.unregisterDisplayListener(displayWatch);
         decoder.shutdownNow();
     }
 
@@ -172,7 +244,8 @@ final class WallpaperPlayer {
         List<File> playable = playable();
         File selected = WallpaperRotation.find(playable, previous);
         long changed = preferences.getLong("changed", 0);
-        if (selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
+        if (selected == null || preferences.getBoolean("power_on", false)
+                || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
             selected = WallpaperRotation.pick(playable, previous, order, random);
         }
         if (selected == null || selected.getName().equals(displayed)) return;
@@ -194,9 +267,10 @@ final class WallpaperPlayer {
                 }
                 show(bitmap);
                 displayed = next.getName();
+                Log.w("TvHome.Wallpaper", "showing " + displayed + " after " + previous);
                 showCaption(true);
                 if (!displayed.equals(previous) || changed == 0) {
-                    preferences.edit().putString("image", displayed)
+                    preferences.edit().putString("image", displayed).putBoolean("power_on", false)
                             .putLong("changed", System.currentTimeMillis()).apply();
                 }
             });
