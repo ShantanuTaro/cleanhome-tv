@@ -235,6 +235,12 @@ enable_service() {   # appends to enabled_accessibility_services without droppin
 }
 if [ "${INPUT_KEY_SERVICE:-0}" = 1 ]; then enable_service InputKeyService; fi
 if [ "${HOME_KEY_SERVICE:-0}" = 1 ]; then enable_service HomeKeyService; fi
+# NOW_PLAYING=1  the Now Playing card on Home (Spotify, Amazon Music...): Android shows other apps' media sessions
+#                only to an approved notification listener. GuardRevival reads no notification. Off again:
+#                tools/tv.py 'cmd notification disallow_listener com.gathin.tvhome/.GuardRevival'
+if [ "${NOW_PLAYING:-0}" = 1 ]; then
+  "$PY" -I ../tools/tv.py "cmd notification allow_listener com.gathin.tvhome/.GuardRevival && echo now-playing on"
+fi
 # The grant follows the switch on every install: pm install -r keeps a grant, so a run without the switch takes it
 # back. WRITE_SECURE_SETTINGS opens every secure and global setting, not only the accessibility list.
 # tv.py does not hand back the TV shell's exit status, so each side prints its marker only once dumpsys shows the

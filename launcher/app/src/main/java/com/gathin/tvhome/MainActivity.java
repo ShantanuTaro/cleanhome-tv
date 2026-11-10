@@ -200,6 +200,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int lunarOffset;
     private TextView stats;
     private ContinueRow continueRow;
+    private NowPlaying nowPlaying;
     private List<RaceWeekend.Race> raceCalendar;
     private View racePanel;
     private TextView raceKicker, raceHeadline, raceSessions;
@@ -601,7 +602,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             return true;
         });
-        continueRow = new ContinueRow(this, root, hero, stats, findViewById(R.id.btnInputs), density);
+        View btnInputsView = findViewById(R.id.btnInputs);
+        continueRow = new ContinueRow(this, root, hero, stats, () -> {
+            if (nowPlaying == null || !nowPlaying.focusCard()) btnInputsView.requestFocus();
+        }, density);
+        nowPlaying = new NowPlaying(this, root, findViewById(R.id.topButtons), hero, () -> {
+            // A dock tile, but not the last one while it leads Up to the stats line (onTileVerticalKey).
+            int p = focusedTilePosition();
+            return !reordering && p >= 0 && p < COLUMNS && !(showStats && p == adapter.dockFilled() - 1);
+        }, () -> focusTile(singleRow ? lastFocused : lastFocused % COLUMNS), density);   // as the pills' Down
         raceCalendar = cfg.raceCalendar;
         racePanel = findViewById(R.id.racePanel);
         raceKicker = findViewById(R.id.raceKicker);
@@ -1137,6 +1146,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         restartIdleClock();
+        if (nowPlaying != null) nowPlaying.start();
         promptsPaused = false;
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
         if (Folders.takeChanged()) reloadApps(false);
@@ -1343,6 +1353,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onPause();
         resumed = false;
         if (continueRow != null) continueRow.stop();
+        if (nowPlaying != null) nowPlaying.stop();
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
         // Only Home's own share is dropped: a key service that saw the same DOWN keeps its hold.
         RemoteKeys.release(this);
@@ -1467,6 +1478,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (continueRow != null && continueRow.handleKey(event)) return true;
+        if (nowPlaying != null && nowPlaying.handleKey(event)) return true;
         if (homeIgnoreChannelKeys && RemoteKeys.isChannelKey(event.getKeyCode())) return true;
         // Vendor keys (TCL Netflix button, 4062) never reach the key services, only the focused window, so their
         // "hold:" entries run here too or nowhere. Only while resumed: onPause releases Home's holds, and a DOWN

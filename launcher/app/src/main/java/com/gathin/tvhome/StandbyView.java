@@ -14,6 +14,16 @@ import java.util.Locale;
 /** StandBy clock faces, drawn on one view that repaints once a second. Left and right change the face (ClockActivity). */
 final class StandbyView extends View {
     static final int FACES = 3;
+    /** Where the song card goes while music plays, as fractions of the width and (calendar face) the height. */
+    static final float MUSIC_LEFT = 0.56f, MUSIC_TOP = 0.6f;
+    private boolean music;
+
+    /** A song shows: the clock moves left at its calendar-face size, and the calendar shrinks. */
+    void setMusic(boolean on) {
+        if (music == on) return;
+        music = on;
+        invalidate();
+    }
     private static final int ORANGE = 0xFFF2A33A, RED = 0xFFFF453A;
     private static final String[] DAYS = {"S", "M", "T", "W", "T", "F", "S"};
 
@@ -61,7 +71,13 @@ final class StandbyView extends View {
         c.drawColor(Color.BLACK);
         Calendar now = Calendar.getInstance();
         int w = getWidth(), h = getHeight();
-        if (face == 0) {
+        if (music) {
+            // A song plays (NowPlaying on the right, from MUSIC_LEFT across and MUSIC_TOP down on the calendar face):
+            // every face keeps the clock at its calendar-face size on the left; the calendar shrinks above the song.
+            if (face == 2) digital(c, now, w * 0.28f, h * 0.5f, h * 0.3f);
+            else analogue(c, now, w * 0.28f, h * 0.5f, h * 0.36f);
+            if (face == 0) calendar(c, now, MUSIC_LEFT * w, h * 0.06f, w * 0.27f, h * 0.42f);
+        } else if (face == 0) {
             analogue(c, now, w * 0.28f, h * 0.5f, h * 0.36f);
             calendar(c, now, w * 0.55f, h * 0.2f, w * 0.38f, h * 0.6f);
         } else if (face == 1) {

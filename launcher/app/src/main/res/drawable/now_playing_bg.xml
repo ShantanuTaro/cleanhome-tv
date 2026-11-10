@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Now Playing card: the glass panel, a little see-through, darker while the card itself has focus. Its ring is
+     now_playing_ring, drawn over the cover. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#E62A2A2E" android:endColor="#E6161618" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#B32A2A2E" android:endColor="#B3161618" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</selector>

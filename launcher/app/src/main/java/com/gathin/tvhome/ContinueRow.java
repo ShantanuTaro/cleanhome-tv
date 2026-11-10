@@ -2,6 +2,7 @@ package com.gathin.tvhome;
 
 import android.app.Activity;
 import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -48,7 +49,8 @@ final class ContinueRow {
 
     private final Activity activity;
     private final FrameLayout root;
-    private final View hero, stats, topButton;
+    private final View hero, stats;
+    private final Runnable up;
     private final float density;
     private final LinearLayout row;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -58,8 +60,9 @@ final class ContinueRow {
     private int request;
     private final Runnable dwell = this::load;
 
-    ContinueRow(Activity activity, FrameLayout root, View hero, View stats, View topButton, float density) {
-        this.topButton = topButton;
+    /** up: where Up from the row goes (the music card, else the top bar). */
+    ContinueRow(Activity activity, FrameLayout root, View hero, View stats, Runnable up, float density) {
+        this.up = up;
         this.activity = activity;
         this.root = root;
         this.hero = hero;
@@ -72,6 +75,20 @@ final class ContinueRow {
                 Gravity.TOP | Gravity.START);
         lp.setMarginStart(dp(60));
         root.addView(row, lp);
+        // Focus left the tile for anything but this row (the music card, the pills): no row, and no dwell still
+        // running to open one there. Runs before the next tile's own focus callback, which starts a new dwell.
+        root.getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> {
+            if (pkg == null || now == anchor || now != null && isInRow(now)) return;
+            hide();
+            pkg = null;
+        });
+    }
+
+    private boolean isInRow(View v) {
+        for (Object p = v.getParent(); p instanceof View; p = ((View) p).getParent()) {
+            if (p == row) return true;
+        }
+        return false;
     }
 
     private int dp(int value) {
@@ -101,7 +118,7 @@ final class ContinueRow {
         int id = ++request;
         io.execute(() -> {
             List<Item> items = query(wanted);
-            for (Item item : items) item.poster = poster(item.art);
+            for (Item item : items) item.poster = poster(activity, item.art, dp(CARD_DP));
             main.post(() -> {
                 if (id == request && wanted.equals(pkg) && !activity.isDestroyed()) show(items);
             });
@@ -132,8 +149,8 @@ final class ContinueRow {
         return out;
     }
 
-    /** The poster at card size, or null: a card without one still shows its title. */
-    private Bitmap poster(String art) {
+    /** The picture at about {@code width} px wide, or null. Blocking: call it off the main thread. Also Now Playing's. */
+    static Bitmap poster(Context context, String art, int width) {
         if (art == null || art.isEmpty()) return null;
         try {
             Uri uri = Uri.parse(art);
@@ -145,7 +162,7 @@ final class ContinueRow {
                 http.setReadTimeout(4000);
                 in = http.getInputStream();
             } else {
-                in = activity.getContentResolver().openInputStream(uri);
+                in = context.getContentResolver().openInputStream(uri);
             }
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             try (InputStream stream = in) {
@@ -159,7 +176,7 @@ final class ContinueRow {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
             BitmapFactory.decodeByteArray(data, 0, data.length, o);
-            o.inSampleSize = Math.max(1, o.outWidth / dp(CARD_DP));
+            o.inSampleSize = Math.max(1, o.outWidth / width);
             o.inJustDecodeBounds = false;
             o.inPreferredConfig = Bitmap.Config.RGB_565;
             return BitmapFactory.decodeByteArray(data, 0, data.length, o);
@@ -257,7 +274,7 @@ final class ContinueRow {
             return true;
         }
         if (inRow && code == KeyEvent.KEYCODE_DPAD_UP) {
-            if (down) topButton.requestFocus();   // focus search will not leave this row by itself
+            if (down) up.run();   // focus search will not leave this row by itself
             return true;
         }
         if (inRow && code == KeyEvent.KEYCODE_BACK) {
